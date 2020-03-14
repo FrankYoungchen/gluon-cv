@@ -55,8 +55,8 @@ class DepthwiseXCorr(HybridBlock):
             self.out_size = [bz, 256, 17, 17]
         else:
             self.kernel_size = [1, 256, 4, 4]
-            self.search_size = [1, 256, 20, 20]
-            self.out_size = [1, 256, 17, 17]
+            self.search_size = [1, 256, 24, 24]
+            self.out_size = [1, 256, 21, 21]
 
         self.conv_kernel.initialize(ctx=ctx)
         self.conv_search.initialize(ctx=ctx)

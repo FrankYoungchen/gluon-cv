@@ -217,8 +217,8 @@ def main(logger, opt):
         for k, v in net.module.collect_params('.*beta|.*gamma|.*bias').items():
             v.wd_mult = 0.0
     
-    if opt.mode == 'hybrid':
-        net.hybridize(static_alloc=True, static_shape=True)
+    # if opt.mode == 'hybrid':
+    #     net.hybridize(static_alloc=True, static_shape=True)
 
     optimizer = gluon.Trainer(net.collect_params(), 'sgd', optimizer_params, kvstore=kv)
 

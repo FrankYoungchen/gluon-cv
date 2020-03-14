@@ -11,7 +11,8 @@ import json
 import logging
 import os
 import numpy as np
-
+from mxnet import gluon
+from mxnet import nd
 from mxnet.gluon.data import dataset
 from gluoncv.utils.filesystem import try_import_cv2
 from gluoncv.model_zoo.siamrpn.siamrpn_tracker import corner2center, center2corner
@@ -252,18 +253,22 @@ class TrkDataset(dataset.Dataset):
     """
     def __init__(self,
                  data_path=os.path.expanduser('~/.mxnet/datasets'),
-                 dataset_names=('vid', 'coco', 'det', 'yt_bb'),
-                 detaset_root=('vid/crop511', 'coco/crop511', 'det/crop511', 'yt_bb/crop511'),
-                 detaset_anno=('vid/train.json', 'coco/train2017.json', 'det/train.json',
-                               'yt_bb/train.json'),
-                 dataset_frame_range=(100, 1, 1, 3),
-                 dataset_num_use=(100000, -1, -1, -1),
+                #  dataset_names=('vid', 'yt_bb', 'coco', 'det'),
+                #  detaset_root=('vid/crop511', 'yt_bb/crop511', 'coco/crop511', 'det/crop511'),
+                #  detaset_anno=('vid/train.json', 'yt_bb/train.json', 'coco/train2017.json', 'det/train.json'),
+                #  dataset_frame_range=(100, 1, 1, 3),
+                #  dataset_num_use=(100000, -1, -1, -1),
+                 dataset_names=('vid',),
+                 detaset_root=('vid/crop511',),
+                 detaset_anno=('vid/train.json',),
+                 dataset_frame_range=(100,),
+                 dataset_num_use=(100000,),
                  train_search_size=255,
                  train_exemplar_size=127,
                  anchor_stride=8,
                  anchor_ratios=(0.33, 0.5, 1, 2, 3),
-                 train_base_size=8,
-                 train_output_size=25,
+                 train_base_size=0,
+                 train_output_size=17,
                  template_shift=4,
                  template_scale=0.05,
                  template_blur=0,
@@ -447,7 +452,7 @@ class TrkDataset(dataset.Dataset):
         template = template.transpose((2, 0, 1)).astype(np.float32)
         search = search.transpose((2, 0, 1)).astype(np.float32)
 
-        return template, search, cls, delta, delta_weight, np.array(bbox)
+        return template, search, cls, delta, delta_weight, bbox
 
 class AnchorTarget:
     def __init__(self, anchor_stride, anchor_ratios, train_search_size, train_output_size,
@@ -548,7 +553,7 @@ class AnchorTarget:
 
         overlap = Iou([x1, y1, x2, y2], target)
         pos = np.where(overlap > self.train_thr_high)
-        neg = np.where(overlap < self.thain_thr_low)
+        neg = np.where(overlap < self.train_thr_low)
 
         pos, pos_num = select(pos, self.train_pos_num)
         neg, _ = select(neg, self.train_total_num - self.train_pos_num)

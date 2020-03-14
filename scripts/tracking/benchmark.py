@@ -38,6 +38,7 @@ def main():
                                  opt.dataset,
                                  opt.tracker_prefix+'*'))
     trackers = [x.split('/')[-1] for x in trackers]
+    print(trackers)
     assert len(trackers) > 0
     opt.num = min(opt.num, len(trackers))
     dataset = OTBDataset(name=opt.dataset, dataset_root=opt.test_dataset, load_img=False)
