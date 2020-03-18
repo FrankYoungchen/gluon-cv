@@ -6,7 +6,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-
+import pdb
 import json
 import logging
 import os
@@ -448,11 +448,12 @@ class TrkDataset(dataset.Dataset):
                                        gray=gray)
 
         # get labels
-        cls, delta, delta_weight, _ = self.anchor_target(bbox, self.train_output_size, neg)
+        #cls, delta, delta_weight, pos_index, neg_index, _ = self.anchor_target(bbox, self.train_output_size, neg)
+        cls, delta, delta_weight = self.anchor_target(bbox, self.train_output_size, neg)
         template = template.transpose((2, 0, 1)).astype(np.float32)
         search = search.transpose((2, 0, 1)).astype(np.float32)
-
-        return template, search, cls, delta, delta_weight, bbox
+        #return template, search, cls, pos_index, neg_index, delta, delta_weight
+        return template, search, cls, delta, delta_weight
 
 class AnchorTarget:
     def __init__(self, anchor_stride, anchor_ratios, train_search_size, train_output_size,
@@ -534,9 +535,12 @@ class AnchorTarget:
             neg, _ = select(np.where(cls == 0), self.train_neg_num)
             cls[:] = -1
             cls[neg] = 0
-
-            overlap = np.zeros((anchor_num, size, size), dtype=np.float32)
-            return cls, delta, delta_weight, overlap
+            # cls = cls.reshape(-1)
+            # pos_index = np.argwhere((cls==1)!=0)
+            # neg_index = np.argwhere((cls==0)!=0)
+            # overlap = np.zeros((anchor_num, size, size), dtype=np.float32)
+            # return cls, delta, delta_weight, pos_index, neg_index, overlap
+            return cls, delta, delta_weight
 
         anchor_box = self.anchors.all_anchors[0]
         anchor_center = self.anchors.all_anchors[1]
@@ -562,4 +566,27 @@ class AnchorTarget:
         delta_weight[pos] = 1. / (pos_num + 1e-6)
 
         cls[neg] = 0
-        return cls, delta, delta_weight, overlap
+
+        # cls = cls.reshape(-1)
+        # pos_index = np.argwhere((cls==1)!=0)
+        # neg_index = np.argwhere((cls==0)!=0)
+
+        return cls, delta, delta_weight
+        # return cls, delta, delta_weight, pos_index, neg_index, overlap
+
+# if __name__ == '__main__':
+#     train_dataset = TrkDataset()
+#     train_sampler = None
+#     train_loader = gluon.data.DataLoader(train_dataset,
+#                               batch_size=128,
+#                               num_workers=1,
+#                               sampler=train_sampler)
+#     for i, data in enumerate(train_loader):
+#         print(len(data))
+        # template, search, label_cls, pos_index, neg_index, label_loc, label_loc_weight= data
+        # template, search, label_cls, label_loc, label_loc_weight = data
+        # print(type(template))
+        # print(type(search))
+        # print(type(label_cls))
+        # print(type(label_loc))
+        # print(type(label_loc_weight))

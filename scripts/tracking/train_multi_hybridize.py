@@ -43,9 +43,9 @@ def parse_args():
                         help='data type for training. default is float32')
     parser.add_argument('--save-dir', type=str, default='params',
                         help='directory of saved models')
-    parser.add_argument('--batch-size', type=int, default=2,
+    parser.add_argument('--batch-size', type=int, default=128,
                         help='training batch size per device (CPU/GPU).')
-    parser.add_argument('--ngpus', type=int, default=2,
+    parser.add_argument('--ngpus', type=int, default=8,
                         help='number of gpus to use.')
     parser.add_argument('--resume-params', type=str, default=None,
                         help='path of parameters to load from.')
@@ -84,7 +84,7 @@ def parse_args():
                         help='disables CUDA training')
     parser.add_argument('--syncbn', action='store_true', default=False,
                         help='using Synchronized Cross-GPU BatchNorm')
-    parser.add_argument('--kvstore', type=str, default='device',
+    parser.add_argument('--kvstore', type=str, default='',
                         help='kvstore to use for trainer/module.')
     parser.add_argument('--accumulate', type=int, default=1,
                         help='new step to accumulate gradient. If >1, the batch size is enlarged.')
@@ -123,8 +123,11 @@ def train_batch_fn(data, opt):
     template = split_and_load(data[0], ctx_list=opt.ctx, batch_axis=0)
     search = split_and_load(data[1], ctx_list=opt.ctx, batch_axis=0)
     label_cls = split_and_load(data[2], ctx_list=opt.ctx, batch_axis=0)
+    # pos_index = split_and_load(data[3], ctx_list=opt.ctx, batch_axis=0)
+    # neg_index = split_and_load(data[4], ctx_list=opt.ctx, batch_axis=0)
     label_loc = split_and_load(data[3], ctx_list=opt.ctx, batch_axis=0)
     label_loc_weight = split_and_load(data[4], ctx_list=opt.ctx, batch_axis=0)
+    # return template, search, label_cls, pos_index, neg_index, label_loc, label_loc_weight
     return template, search, label_cls, label_loc, label_loc_weight
     
 
@@ -217,8 +220,8 @@ def main(logger, opt):
         for k, v in net.module.collect_params('.*beta|.*gamma|.*bias').items():
             v.wd_mult = 0.0
     
-    # if opt.mode == 'hybrid':
-    #     net.hybridize(static_alloc=True, static_shape=True)
+    if opt.mode == 'hybrid':
+        net.hybridize(static_alloc=True, static_shape=True)
 
     optimizer = gluon.Trainer(net.collect_params(), 'sgd', optimizer_params, kvstore=kv)
 
@@ -251,7 +254,19 @@ def train(opt, net, train_loader, criterion, trainer, batch_size, kv, logger):
             with autograd.record():
                 for j in range(len(opt.ctx)):
                     cls, loc=net(template[j], search[j])
-                    cls_loss, loc_loss = criterion(cls, loc, label_cls[j], label_loc[j], label_loc_weight[j])
+                    label_cls_temp = label_cls[j].reshape(-1).asnumpy()
+                    pos_index = np.argwhere(label_cls_temp==1).reshape(-1)
+                    neg_index = np.argwhere(label_cls_temp==0).reshape(-1)
+                    if len(pos_index):
+                        pos_index = nd.array(pos_index, ctx=opt.ctx[j])
+                    else:
+                        pos_index = nd.array(np.array([]), ctx=opt.ctx[j])
+                    if len(neg_index):
+                        neg_index = nd.array(neg_index, ctx=opt.ctx[j])
+                    else:
+                        neg_index = nd.array(np.array([]), ctx=opt.ctx[j])
+                    cls_loss, loc_loss = criterion(cls, loc, label_cls[j], pos_index, neg_index, 
+                                                   label_loc[j], label_loc_weight[j])
                     total_loss = opt.cls_weight*cls_loss+opt.loc_weight*loc_loss
                     cls_losses.append(cls_loss)
                     loc_losses.append(loc_loss)
@@ -262,22 +277,11 @@ def train(opt, net, train_loader, criterion, trainer, batch_size, kv, logger):
                         autograd.backward(scaled_loss)
                 else:
                     autograd.backward(total_losses)
-            if opt.accumulate > 1 and (i + 1) % opt.accumulate == 0:
-                if opt.kvstore is not None:
-                    trainer.step(batch_size * kv.num_workers * opt.accumulate)
-                else:
-                    trainer.step(batch_size * opt.accumulate)
-                    net.collect_params().zero_grad()
-            else:
-                if opt.kvstore is not None:
-                    trainer.step(batch_size * kv.num_workers)
-                else:
-                    trainer.step(batch_size)
             trainer.step(opt.batch_size)
             loss_total_val += sum([l.mean().asscalar() for l in total_losses]) / len(total_losses)
             loss_loc_val += sum([l.mean().asscalar() for l in loc_losses]) / len(loc_losses)
             loss_cls_val += sum([l.mean().asscalar() for l in cls_losses]) / len(cls_losses)
-            if i%2==0:
+            if i%128==0:
                 logger.info('Epoch %d iteration %04d/%04d: loc loss %.3f, cls loss %.3f, training loss %.3f, batch time %.3f'% \
                                 (epoch, i, len(train_loader), loss_loc_val/(i+1), loss_cls_val/(i+1),
                                 loss_total_val/(i+1), time.time()-batch_time))

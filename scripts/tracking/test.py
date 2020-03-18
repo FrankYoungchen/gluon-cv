@@ -27,18 +27,18 @@ def parse_args():
                         help='whether visualzie result')
     parser.add_argument('--mode', type=str, default='hybrid',
                         help='mode in which to train the model.options are symbolic, hybrid')
-    parser.add_argument('--num_gpus', type=int, default=0,
+    parser.add_argument('--num-gpus', type=int, default=1,
                         help='number of gpus to use.')
-    parser.add_argument('--model_name', type=str, default='siamrpn_alexnet_v2_otb',
+    parser.add_argument('--model_name', type=str, default = 'siamrpn_alexnet_v2_otb15',
                         help='name of model.')
     parser.add_argument('--batch-size', type=int, default=32,
                         help='training batch size per device (CPU/GPU).')
     parser.add_argument('--num_workers', default=4, type=int,
-                        help='number of preprocessing workers')
+                        help='number of preprocessing workers')      
     parser.add_argument('--pretrained', action='store_true', default='True',
                         help='enable using pretrained model from gluon.')
     parser.add_argument('--use_gpu', action='store_true', default='True',
-                        help='Whether to use GPU.')
+                        help='enable using pretrained model from gluon.')
     opt = parser.parse_args()
     return opt
 
@@ -71,7 +71,7 @@ def main():
     net.collect_params().reset_ctx(ctx)
     if opt.mode == 'hybrid':
         net.hybridize(static_alloc=True, static_shape=True)
-    if not opt.model_path:
+    if opt.model_path:
         net.load_parameters(opt.model_path, ctx=ctx)
         print('Pre-trained model %s is successfully loaded.' % (opt.model_path))
     else:
